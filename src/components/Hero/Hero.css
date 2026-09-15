@@ -353,6 +353,7 @@
   }
 
   .hero__portrait {
+    margin: -50px;
     height: 600px;
     max-width: 100%;
     -webkit-mask-image: linear-gradient(
