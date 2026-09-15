@@ -12,9 +12,6 @@ function TeachingPlaces() {
             <p className="teaching__label">Где я преподаю</p>
             <h2 className="teaching__title">Места преподавания</h2>
           </div>
-          <a href="#about" className="teaching__more">
-            Подробнее о моей деятельности <span>→</span>
-          </a>
         </div>
         <div className="teaching__grid">
           {teachingPlaces.map((place) => (

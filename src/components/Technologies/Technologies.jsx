@@ -10,9 +10,6 @@ function Technologies() {
             <p className="technologies__label">Технологии который преподаю</p>
             <h2 className="technologies__title">Мои навыки</h2>
           </div>
-          <a href="#about" className="technologies__more">
-            Все технологии <span>→</span>
-          </a>
         </div>
         <div className="technologies__grid">
           {technologies.map((tech) => (
