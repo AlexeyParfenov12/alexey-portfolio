@@ -353,7 +353,7 @@
   }
 
   .hero__portrait {
-    height: 500px;
+    height: 600px;
     max-width: 100%;
     -webkit-mask-image: linear-gradient(
     to bottom,
@@ -398,13 +398,24 @@
     font-size: 16px;
   }
 
+   .hero__portrait {
+    margin: 70px;
+    height: 600px;
+    max-width: 100%;
+    -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 80%,
+    transparent 100%
+    );
+  }
+
   .hero__center {
     height: 420px;
   }
 
-  .hero__portrait {
+  /* .hero__portrait {
     height: 420px;
-  }
+  } */
 
   .hero__notes {
     display: none;
