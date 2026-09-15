@@ -1,0 +1,137 @@
+.teaching {
+  padding: 40px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.teaching__label {
+  margin-bottom: 8px;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.teaching__title {
+  color: var(--color-text);
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.teaching__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.teaching__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-primary-light);
+  font-size: 14px;
+  font-weight: 500;
+  transition: color var(--transition);
+}
+
+.teaching__more span {
+  font-size: 20px;
+  transition: transform var(--transition);
+}
+
+.teaching__more:hover {
+  color: var(--color-text);
+}
+
+.teaching__more:hover span {
+  transform: translateX(5px);
+}
+
+.teaching__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.teaching__card {
+  min-height: 250px;
+  padding: 24px;
+  background: color-mix(in srgb, var(--color-bg-card) 60%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  box-shadow: 0 10px 20px var(--color-bg-card);
+}
+
+.teaching-card__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.teaching-card__icon {
+  flex: 0 0 58px;
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.teaching-card__title {
+  text-align: center;
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.teaching-card__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.teaching-card__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.teaching-card__list svg {
+  flex: 0 0 17px;
+  margin-top: 2px;
+  margin-right: 5px;
+  color: var(--color-primary);
+  font-size: 17px;
+}
+
+@media (max-width: 1100px) {
+  .teaching__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .teaching__card:last-child:nth-child(odd) {
+    grid-column: 1/-1;
+  }
+}
+
+@media (max-width: 850px) {
+  .teaching__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}

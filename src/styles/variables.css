@@ -1,0 +1,45 @@
+:root {
+  /* Основные цвета фона */
+  --color-bg: #07111a;
+  --color-bg-secondary: #091824;
+  --color-bg-card: #0b1c28;
+
+  /* Цвета границ */
+  --color-border: #173244;
+  --color-border-light: #23465e;
+
+  /* Основной текст */
+  --color-text: #ffffff;
+
+  /* Второстепенный текст */
+  --color-text-secondary: #a6b2bd;
+
+  /* Ещё менее заметный текст */
+  --color-text-muted: #647483;
+
+  /* Главный синий цвет */
+  --color-primary: #4589ff;
+
+  /* Более светлый синий */
+  --color-primary-light: #6aa1ff;
+
+  /* Более тёмный синий */
+  --color-primary-dark: #2468dd;
+
+  /* Зелёный для отдельных технических элементов */
+  --color-success: #43d19e;
+
+  /* Максимальная ширина контента */
+  --container-width: 1440px;
+
+  /* Горизонтальные отступы */
+  --container-padding: 60px;
+
+  /* Скругления */
+  --radius-small: 6px;
+  --radius-medium: 10px;
+  --radius-large: 16px;
+
+  /* Стандартная скорость анимации */
+  --transition: 0.3s ease;
+}

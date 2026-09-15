@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" role="img" aria-labelledby="title desc">
+  <title id="title">ЕТ «Автоматика»</title>
+  <desc id="desc">Векторный знак Екатеринбургского техникума «Автоматика»</desc>
+  <g fill="#FFFFFF">
+    <!-- Left part of the circular mark -->
+    <path d="M227 27
+             L238 59
+             C260 51 283 46 306 43
+             L154 505
+             C84 466 39 390 29 296
+             L64 296
+             C60 190 121 91 227 27Z"/>
+
+    <!-- Right part of the circular mark -->
+    <path d="M324 42
+             C414 40 497 72 548 130
+             L518 149
+             C551 200 580 270 580 337
+             C580 382 568 425 547 462
+             L518 442
+             C504 459 488 476 471 490
+             L324 42Z"/>
+
+    <!-- Inner triangular counter of the A -->
+    <path d="M315 295
+             L263 455
+             C296 466 333 468 367 457
+             L315 295Z"/>
+
+    <!-- Lower arc -->
+    <path d="M237 531
+             C287 548 343 548 393 531
+             L404 564
+             C347 584 284 584 227 565
+             L237 531Z"/>
+  </g>
+</svg>
