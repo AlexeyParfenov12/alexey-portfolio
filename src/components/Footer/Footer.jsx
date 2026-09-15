@@ -41,10 +41,9 @@ function Footer() {
 
           <nav className="footer__nav" aria-label="Навигация в подвале">
             <a href="#home">Главная</a>
-            <a href="#about">Обо мне</a>
-            <a href="#teaching">Преподавание</a>
+            <a href="#teaching">Обо мне</a>
+            <a href="#technologies">Навыки</a>
             <a href="#projects">Проекты</a>
-            <a href="#materials">Материалы</a>
             <a href="#contacts">Контакты</a>
           </nav>
         </div>

@@ -21,10 +21,9 @@ function Header() {
 
         <nav className={ menuOpen ? 'header__nav header__nav-open' : 'header__nav'}>
             <a href="#home" onClick={closeMenu}>Главная</a>
-            <a href="#about" onClick={closeMenu}>Обо мне</a>
+            <a href="#teaching" onClick={closeMenu}>Обо мне</a>
             <a href="#technologies" onClick={closeMenu}>Навыки</a>
             <a href="#projects" onClick={closeMenu}>Проекты</a>
-            <a href="#experience" onClick={closeMenu}>Опыт</a>
             <a href="#contacts" onClick={closeMenu}>Контакты</a>
             <a href="#" className="header__resume-mobile" onClick={closeMenu}>
                 <FiDownload />
