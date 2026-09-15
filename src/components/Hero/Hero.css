@@ -400,8 +400,8 @@
   }
 
    .hero__portrait {
-    margin: 50px;
-    height: 600px;
+    margin: 60px;
+    height: 500px;
     max-width: 100%;
     -webkit-mask-image: linear-gradient(
     to bottom,
