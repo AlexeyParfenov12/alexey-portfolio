@@ -24,7 +24,7 @@ const technologies = [
     },
     {
         id: 4,
-        icon: javaScript,
+        icon: javascript,
     },
     {
         id: 5,
