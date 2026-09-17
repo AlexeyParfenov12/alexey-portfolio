@@ -26,13 +26,13 @@ function Header() {
             <a href="#technologies" onClick={closeMenu}>Навыки</a>
             <a href="#projects" onClick={closeMenu}>Проекты</a>
             <a href="#contacts" onClick={closeMenu}>Контакты</a>
-            <a href="/portfolio.pdf" className="header__resume-mobile" download onClick={closeMenu}>
+            <a href={`${import.meta.env.BASE_URL}portfolio.pdf`} className="header__resume-mobile" download onClick={closeMenu}>
                 <FiDownload />
                 <span>Скачать резюме</span>
             </a>
         </nav>
 
-        <a href="/portfolio.pdf" className="header__resume" download>
+        <a href={`${import.meta.env.BASE_URL}portfolio.pdf`} className="header__resume" download>
             <FiDownload />
             <span>Скачать резюме</span>
         </a>
