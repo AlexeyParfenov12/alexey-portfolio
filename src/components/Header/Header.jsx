@@ -4,6 +4,7 @@ import {FiDownload, FiMenu, FiX} from 'react-icons/fi'
 
 import "./Header.css";
 
+
 function Header() {
     const [menuOpen, setMenuOpen] = useState(false)
 
@@ -25,7 +26,7 @@ function Header() {
             <a href="#technologies" onClick={closeMenu}>Навыки</a>
             <a href="#projects" onClick={closeMenu}>Проекты</a>
             <a href="#contacts" onClick={closeMenu}>Контакты</a>
-            <a href="#" className="header__resume-mobile" onClick={closeMenu}>
+            <a href="/portfolio.pdf" className="header__resume-mobile" download onClick={closeMenu}>
                 <FiDownload />
                 <span>Скачать резюме</span>
             </a>
