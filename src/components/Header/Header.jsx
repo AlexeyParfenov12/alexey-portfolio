@@ -32,7 +32,7 @@ function Header() {
             </a>
         </nav>
 
-        <a href="#" className="header__resume">
+        <a href="/portfolio.pdf" className="header__resume" download>
             <FiDownload />
             <span>Скачать резюме</span>
         </a>
