@@ -252,7 +252,7 @@ function boardArrowTip(d,width=3){
 }
 function boardStrokePath(s){
  const d=typeof s==='string'?s:String(s.d||''),color=esc(s.color||'#0d6b61'),width=Number(s.width)||3;
- return `<path d="${esc(d)}" stroke="${color}" stroke-width="${width}" class="${s.id&&temp.selectedArrow?.id===s.id?'board-arrow-selected':''}"></path>${s.kind==='arrow'?`<path d="${boardArrowTip(d,width)}" stroke="${color}" stroke-width="${width}" stroke-linejoin="round"></path><path data-board-stroke-id="${esc(s.id||'')}" class="board-arrow-hit" d="${esc(d)}" stroke="transparent" stroke-width="${Math.max(14,width+12)}" fill="none" pointer-events="stroke"></path>`:''}`
+ return `<path d="${esc(d)}" stroke="${color}" stroke-width="${width}" class="${boardDrawingSelected('stroke',s.id)?'board-arrow-selected':''}"></path>${s.kind==='arrow'?`<path d="${boardArrowTip(d,width)}" stroke="${color}" stroke-width="${width}" stroke-linejoin="round"></path><path data-board-stroke-id="${esc(s.id||'')}" class="board-arrow-hit" d="${esc(d)}" stroke="transparent" stroke-width="${Math.max(14,width+12)}" fill="none" pointer-events="stroke"></path>`:''}`
 }
 function eraserAt(p,live){const b=getBoard(),arr=live?b.liveStrokes:b.strokes;for(let i=arr.length-1;i>=0;i--){const d=typeof arr[i]==='string'?arr[i]:arr[i].d||'';let pts=[...d.matchAll(/[ML]\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g)];if(pts.some(m=>Math.hypot(+m[1]-p.x,+m[2]-p.y)<17)){snapshot();arr.splice(i,1);saveBoard();return true}}return false}
 
@@ -268,7 +268,7 @@ function connectorPath(b,c){
  const f=b.objects.find(o=>o.id===c.fromId),t=b.objects.find(o=>o.id===c.toId);
  if(!f||!t)return '';
  const a=boardEdgeAnchor(f,t),z=boardEdgeAnchor(t,f);
- return `<path d="M${a.x} ${a.y} L${z.x} ${z.y}" stroke="${esc(c.color||'#0d6b61')}" stroke-width="${Number(c.width)||3}" class="${temp.selectedArrow?.id===c.id?'board-arrow-selected':''}" marker-end="url(#board-link-arrow)"></path>`;
+ return `<path d="M${a.x} ${a.y} L${z.x} ${z.y}" stroke="${esc(c.color||'#0d6b61')}" stroke-width="${Number(c.width)||3}" class="${boardDrawingSelected('connector',c.id)?'board-arrow-selected':''}" marker-end="url(#board-link-arrow)"></path>`;
 }
 function boardConnectorMarkup(b){return `<g id="boardConnectorPaths">${(b.connectors||[]).map(c=>connectorPath(b,c)).join('')}</g>`}
 function boardConnectorHits(b){
@@ -283,6 +283,58 @@ function boardObjectAtPoint(p,excludeId){
  const b=getBoard(),margin=Math.min(28,Math.max(4,12/(db.zoom||1)));
  return [...b.objects].reverse().find(o=>o.id!==excludeId&&o.type!=='frame'&&p.x>=o.x-margin&&p.x<=o.x+o.w+margin&&p.y>=o.y-margin&&p.y<=o.y+o.h+margin)||null;
 }
+
+function boardInkPoints(d){
+ return [...String(d||'').matchAll(/[ML]\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g)]
+  .map(m=>({x:Number(m[1]),y:Number(m[2])})).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+}
+function boardSegmentDistance(p,a,b){
+ const dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy;
+ if(len<.00001)return Math.hypot(p.x-a.x,p.y-a.y);
+ const u=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len));
+ return Math.hypot(p.x-(a.x+u*dx),p.y-(a.y+u*dy));
+}
+function boardStrokeDistance(p,points){
+ if(!points.length)return Infinity;
+ if(points.length===1)return Math.hypot(p.x-points[0].x,p.y-points[0].y);
+ let d=Infinity;for(let i=1;i<points.length;i++)d=Math.min(d,boardSegmentDistance(p,points[i-1],points[i]));
+ return d;
+}
+function boardDrawingCandidates(b){
+ const list=(b.strokes||[]).filter(s=>s.id).map(s=>({kind:'stroke',id:s.id,points:boardInkPoints(s.d),width:Number(s.width)||3}));
+ for(const c of b.connectors||[]){
+  const a=b.objects.find(o=>o.id===c.fromId),z=b.objects.find(o=>o.id===c.toId);
+  if(a&&z)list.push({kind:'connector',id:c.id,points:[boardEdgeAnchor(a,z),boardEdgeAnchor(z,a)],width:Number(c.width)||3});
+ }
+ return list;
+}
+function boardFindDrawingAt(p){
+ const threshold=Math.min(75,Math.max(5,11/(db.zoom||1)));
+ const list=boardDrawingCandidates(getBoard()),matches=list.map(d=>({...d,distance:boardStrokeDistance(p,d.points)}))
+  .filter(d=>d.distance<=threshold+d.width/2).sort((a,b)=>a.distance-b.distance);
+ return matches[0]?{kind:matches[0].kind,id:matches[0].id}:null;
+}
+function boardDrawingsInRect(x1,y1,x2,y2){
+ return boardDrawingCandidates(getBoard()).filter(d=>{
+  const pts=d.points;if(!pts.length)return false;
+  const left=Math.min(...pts.map(p=>p.x)),right=Math.max(...pts.map(p=>p.x));
+  const top=Math.min(...pts.map(p=>p.y)),bottom=Math.max(...pts.map(p=>p.y));
+  return left<=x2&&right>=x1&&top<=y2&&bottom>=y1;
+ }).map(d=>({kind:d.kind,id:d.id}));
+}
+function boardDrawingSelected(kind,id){
+ return !!id&&((temp.selectedDrawings||[]).some(x=>x.kind===kind&&x.id===id)||
+  (temp.selectedArrow?.kind===kind&&temp.selectedArrow?.id===id));
+}
+function boardSelectDrawing(hit,add=false){
+ const current=add?[...(temp.selectedDrawings||[])]:[];
+ const index=current.findIndex(x=>x.kind===hit.kind&&x.id===hit.id);
+ if(index>=0)current.splice(index,1);else current.push({kind:hit.kind,id:hit.id});
+ temp.selectedDrawings=current;temp.selectedArrow=current.at(-1)||null;
+ if(!add){db.chosen=null;db.selectedIds=[]}
+ temp.boardInspectorOpen=false;draw();
+}
+
 function dropDanglingConnectors(b){const alive=new Set(b.objects.map(o=>o.id));b.connectors=(b.connectors||[]).filter(c=>alive.has(c.fromId)&&alive.has(c.toId))}
 function frameMiniMap(b){if(!b.frames.length)return '';return `<div class="board-minimap" aria-label="Обзор кадров"><div><span>Обзор доски</span><span>${b.frames.length} кадр.</span></div><div class="board-minimap-map">${b.frames.map((f,i)=>{let o=b.objects.find(x=>x.id===f.id);if(!o)return '';return `<button class="board-minimap-frame ${b.activeFrame===i?'active':''}" title="Перейти к ${esc(f.title)}" aria-label="Перейти к кадру ${esc(f.title)}" data-act="frame:${i}" style="left:${Math.min(96,o.x/3000*100)}%;top:${Math.min(93,o.y/2200*100)}%;width:${Math.max(5,o.w/3000*100)}%;height:${Math.max(8,o.h/2200*100)}%"></button>`}).join('')}</div></div>`}
 function boardColorChoices(){const colors=['#0d6b61','#17211e','#c24b5b','#245c96','#f1b63c'];return `<div class="board-pen-options"><label>${db.tool==='arrow'?'Стрелка':'Перо'}</label>${colors.map(c=>`<button class="pen-color ${(db.penColor||'#0d6b61')===c?'selected':''}" data-act="penColor:${c.slice(1)}" style="background:${c}" aria-label="Цвет пера ${c}" title="Цвет пера ${c}"></button>`).join('')}<select aria-label="Толщина пера" id="penWidthSelect">${[2,3,5,8,12].map(w=>`<option value="${w}" ${Number(db.penWidth||3)===w?'selected':''}>${w}px</option>`).join('')}</select></div>`}
@@ -497,7 +549,7 @@ function boardObject(o){const idx=getBoard().objects.findIndex(item=>item.id===o
 }
 
 function addBoardImage(){let input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp';input.onchange=()=>{let f=input.files&&input.files[0];if(!f)return;if(f.size>750000){notify('Для автономного прототипа выберите изображение меньше 750 КБ');return}const reader=new FileReader();reader.onload=()=>{snapshot();let o={id:uid(),type:'image',x:260,y:240,w:320,h:240,text:f.name,src:String(reader.result),fill:'#ffffff'};getBoard().objects.push(o);db.chosen=o.id;db.tool='select';saveBoard();notify('Изображение добавлено')};reader.readAsDataURL(f)};input.click()}
-function snapshot(){temp.snapshot.push(JSON.stringify(getBoard()));if(temp.snapshot.length>80)temp.snapshot.shift();temp.future=[]}function saveBoard(refresh=true){persist();if(refresh)draw()}function setTool(t){db.tool=t;db.chosen=null;db.selectedIds=[];temp.selectedArrow=null;temp.boardInspectorOpen=false;db.boardToolPalette=false;saveBoard()}
+function snapshot(){temp.snapshot.push(JSON.stringify(getBoard()));if(temp.snapshot.length>80)temp.snapshot.shift();temp.future=[]}function saveBoard(refresh=true){persist();if(refresh)draw()}function setTool(t){db.tool=t;db.chosen=null;db.selectedIds=[];temp.selectedArrow=null;temp.selectedDrawings=[];temp.boardInspectorOpen=false;db.boardToolPalette=false;saveBoard()}
 function newObj(type,x,y){let defaults={text:{w:230,h:75,text:'Новый текст',fill:'transparent',size:23},heading:{w:340,h:68,text:'Заголовок',fill:'transparent',size:29},sticky:{w:190,h:150,text:'Заметка',fill:'#fff1bc'},rect:{w:225,h:110,text:'Блок схемы',fill:'#ddf4ea'},ellipse:{w:210,h:100,text:'Начало',fill:'#e6f5ef'},frame:{w:620,h:380,text:'Новый кадр',fill:'#e6f5ef'},code:{w:360,h:180,text:'for i in range(5):\n    print(i)',fill:'#e3f4ed'},poll:{w:330,h:190,text:'Быстрый вопрос\nВыберите правильный ответ',fill:'#fff'},diagram:{w:340,h:230,text:'Блок-схема\nНачало → Действие → Результат',fill:'#e6f5ef'},formula:{w:300,h:120,text:'R = U / I',fill:'#fff'},table:{w:360,h:190,text:'Показатель | Значение\nU, В | 6\nI, А | 0.3',fill:'#fff'},task:{w:340,h:175,text:'Задание группе\nОбъясните работу алгоритма',fill:'#e6f5ef'}};return {id:uid(),type,x,y,...defaults[type]||defaults.rect}}
 function boardPos(ev){let rect=$('#boardCanvas').getBoundingClientRect();return {x:(ev.clientX-rect.left-db.panX)/db.zoom,y:(ev.clientY-rect.top-db.panY)/db.zoom}}
 
@@ -552,13 +604,15 @@ function boardPointerDown(e){
  const b=getBoard();
  const hitConnector=e.target.closest('[data-board-connector]');
  const hitStroke=e.target.closest('[data-board-stroke-id]');
- if(!db.live&&db.tool==='select'&&(hitConnector||hitStroke)){
-  const id=hitConnector?.dataset.boardConnector||hitStroke?.dataset.boardStrokeId;
-  temp.selectedArrow={kind:hitConnector?'connector':'stroke',id};
-  db.chosen=null;db.selectedIds=[];temp.pointer=null;
-  e.preventDefault();e.stopPropagation();draw();return;
+ const nearDrawing=!resize&&db.tool==='select'&&!db.live?
+  boardFindDrawingAt(boardPos(e))||(
+  hitConnector?{kind:'connector',id:hitConnector.dataset.boardConnector}:
+  hitStroke?{kind:'stroke',id:hitStroke.dataset.boardStrokeId}:null):null;
+ if(nearDrawing){
+  temp.pointer=null;boardSelectDrawing(nearDrawing,e.shiftKey);
+  e.preventDefault();e.stopPropagation();return;
  }
- temp.selectedArrow=null;
+ if(!e.shiftKey){temp.selectedArrow=null;temp.selectedDrawings=[]}
  if(resize&&!db.live){const o=b.objects.find(o=>o.id===resize.dataset.resize);if(!o||o.locked)return;snapshot();db.chosen=o.id;db.selectedIds=[o.id];temp.pointer={mode:'resize',id:o.id,start:boardPos(e),w:o.w,h:o.h};canvas.setPointerCapture(e.pointerId);e.preventDefault();return}
  if(obj&&db.tool==='select'&&!temp.spaceHeld){
   const o=b.objects.find(o=>o.id===obj.dataset.obj);if(!o)return;
@@ -618,7 +672,15 @@ function boardPointerUp(e){if(!temp.pointer)return;const was=temp.pointer.mode,b
   temp.pointer=null;persist();drawBoardWithoutView();return;
  }
  temp.lastBoardClick=null;
- if(was==='marquee'){let {start,current}=temp.pointer,x1=Math.min(start.x,current.x),y1=Math.min(start.y,current.y),x2=Math.max(start.x,current.x),y2=Math.max(start.y,current.y);db.selectedIds=(Math.abs(x2-x1)>4||Math.abs(y2-y1)>4)?b.objects.filter(o=>o.x<x2&&o.x+o.w>x1&&o.y<y2&&o.y+o.h>y1).map(o=>o.id):[];db.chosen=db.selectedIds.at(-1)||null;temp.pointer=null;persist();draw();return}
+ if(was==='marquee'){
+  const {start,current}=temp.pointer,x1=Math.min(start.x,current.x),y1=Math.min(start.y,current.y),x2=Math.max(start.x,current.x),y2=Math.max(start.y,current.y);
+  const hasArea=Math.abs(x2-x1)>4||Math.abs(y2-y1)>4;
+  const foundObjects=hasArea?b.objects.filter(o=>o.x<x2&&o.x+o.w>x1&&o.y<y2&&o.y+o.h>y1).map(o=>o.id):[];
+  db.selectedIds=foundObjects;db.chosen=db.selectedIds.at(-1)||null;
+  temp.selectedDrawings=hasArea?boardDrawingsInRect(x1,y1,x2,y2):[];
+  temp.selectedArrow=temp.selectedDrawings.at(-1)||null;
+  temp.pointer=null;persist();draw();return;
+ }
  if(was==='arrow'&&temp.pointer.fromId){
  const target=boardObjectAtPoint(boardPos(e),temp.pointer.fromId);
  if(target){b.connectors.push({id:uid(),fromId:temp.pointer.fromId,toId:target.id,color:db.penColor||'#0d6b61',width:Number(db.penWidth)||3});linked=true;notify('Стрелка закреплена на краях блоков. Её можно выделить и удалить.')}
@@ -656,12 +718,14 @@ function setupBoard(){const c=$('#boardCanvas');if(!c)return;
   document.querySelector('.board-inspector')?.remove();
   document.getElementById('boardObjectContextMenu')?.remove();
   const arrowConnector=e.target.closest('[data-board-connector]'),arrowStroke=e.target.closest('[data-board-stroke-id]');
-  const arrowId=arrowConnector?.dataset.boardConnector||arrowStroke?.dataset.boardStrokeId;
+  const geometric=boardFindDrawingAt(boardPos(e));
+  const arrowId=geometric?.id||arrowConnector?.dataset.boardConnector||arrowStroke?.dataset.boardStrokeId;
+  const arrowKind=geometric?.kind||(arrowConnector?'connector':'stroke');
   const el=e.target.closest('[data-obj]'),obj=el?getBoard().objects.find(o=>o.id===el.dataset.obj):null;
-  if(arrowId){temp.selectedArrow={kind:arrowConnector?'connector':'stroke',id:arrowId};db.chosen=null;db.selectedIds=[];drawBoardWithoutView()}
-  else if(obj){temp.selectedArrow=null;db.chosen=obj.id;db.selectedIds=[obj.id];drawBoardWithoutView()}
-  else temp.selectedArrow=null;
-  const actions=arrowId?[['deleteSelected','Удалить стрелку'],['copySelection','Копировать стрелку']]:obj?[
+  if(arrowId){temp.selectedArrow={kind:arrowKind,id:arrowId};temp.selectedDrawings=[temp.selectedArrow];db.chosen=null;db.selectedIds=[];drawBoardWithoutView()}
+  else if(obj){temp.selectedArrow=null;temp.selectedDrawings=[];db.chosen=obj.id;db.selectedIds=[obj.id];drawBoardWithoutView()}
+  else {temp.selectedArrow=null;temp.selectedDrawings=[];}
+  const actions=arrowId?[['deleteSelected','Удалить линию'],['copySelection','Копировать линию']]:obj?[
    ['quickEdit:'+obj.id,'Свойства'],
    ['duplicateObj','Дублировать'],
    ['copySelection','Копировать'],
@@ -719,15 +783,23 @@ case 'pasteSelection':{
  db.selectedIds=copies.map(x=>x.id);db.chosen=db.selectedIds.at(-1)||null;saveBoard();notify('Копия вставлена');return;
 }
 case 'deleteSelected':{if(db.live)return;
- if(temp.selectedArrow){const x=temp.selectedArrow;snapshot();if(x.kind==='connector')b.connectors=(b.connectors||[]).filter(a=>a.id!==x.id);else b.strokes=b.strokes.filter(a=>a.id!==x.id);temp.selectedArrow=null;saveBoard();notify('Стрелка удалена. Ctrl+Z — отменить.');return}
+ const drawings=temp.selectedDrawings?.length?[...temp.selectedDrawings]:temp.selectedArrow?[temp.selectedArrow]:[];
  const ids=(db.selectedIds||[]).length?db.selectedIds:db.chosen?[db.chosen]:[];if(!ids.length)return;
  const frames=ids.map(id=>b.objects.find(o=>o.id===id)).filter(o=>o?.type==='frame');if(frames.length){
  if(frames.length===1&&ids.length===1)frameDeleteDialog(frames[0].id);
  else frameDeleteBatchDialog(frames.map(f=>f.id));return;
 }
  const deletable=ids.filter(id=>!b.objects.find(o=>o.id===id)?.locked);
- if(!deletable.length){notify('Сначала открепите объект');return}
- snapshot();b.objects=b.objects.filter(x=>!deletable.includes(x.id));dropDanglingConnectors(b);db.chosen=null;db.selectedIds=[];saveBoard();notify('Объекты удалены. Действие можно отменить.');return}
+ if(!deletable.length&&!drawings.length){notify('Сначала выделите объект, линию или открепите выбранное');return}
+ snapshot();
+ const connectorIds=new Set(drawings.filter(x=>x.kind==='connector').map(x=>x.id));
+ const strokeIds=new Set(drawings.filter(x=>x.kind==='stroke').map(x=>x.id));
+ b.connectors=b.connectors.filter(x=>!connectorIds.has(x.id));
+ b.strokes=b.strokes.filter(x=>!strokeIds.has(x.id));
+ b.objects=b.objects.filter(x=>!deletable.includes(x.id));
+ dropDanglingConnectors(b);
+ db.chosen=null;db.selectedIds=[];temp.selectedDrawings=[];temp.selectedArrow=null;
+ saveBoard();notify('Выделенные объекты и линии удалены. Ctrl+Z — отменить.');return}
 case 'deselect':db.chosen=null;db.selectedIds=[];draw();return;
  case 'bringToFront':case 'sendToBack':{let o=b.objects.find(x=>x.id===db.chosen);if(!o||o.locked||o.type==='frame')return;snapshot();b.objects=b.objects.filter(x=>x.id!==o.id);if(key==='bringToFront')b.objects.push(o);else b.objects.splice(Math.max(0,b.objects.findIndex(x=>x.type!=='frame')),0,o);saveBoard();return}
 case 'duplicateObj':{if(db.live)return;let o=b.objects.find(x=>x.id===db.chosen);if(!o)return;if(o.type==='frame'){frameDuplicate(o.id,true);return}
@@ -758,6 +830,13 @@ case 'frameToggle':{
  if(chosen.has(f.id))chosen.delete(f.id);else chosen.add(f.id);
  db.selectedIds=[...chosen];db.chosen=db.selectedIds.at(-1)||null;
  temp.selectedArrow=null;temp.selectedDrawings=[];temp.boardInspectorOpen=false;draw();return;
+}
+case 'selectAllBoard':{
+ if(db.live)return;
+ db.selectedIds=b.objects.map(o=>o.id);db.chosen=db.selectedIds.at(-1)||null;
+ temp.selectedDrawings=boardDrawingCandidates(b).map(x=>({kind:x.kind,id:x.id}));
+ temp.selectedArrow=temp.selectedDrawings.at(-1)||null;temp.boardInspectorOpen=false;
+ draw();notify('Выделены все объекты, линии и кадры. Delete — удалить.');return;
 }
 case 'selectAllFrames':{
  if(db.live)return;db.selectedIds=b.frames.map(f=>f.id);db.chosen=db.selectedIds.at(-1)||null;
@@ -822,7 +901,7 @@ let saveDebounce;document.addEventListener('input',e=>{let t=e.target,m=getMat()
  }else if(t.id==='penWidthSelect'){db.penWidth=Math.max(1,Math.min(36,Number(t.value)||3));saveBoard();return}else if(t.id==='quizMinutes'){m.minutes=Math.max(1,Number(t.value||20))}else if(t.id==='quizAttempts'){m.allowedAttempts=Math.max(1,Number(t.value||1))}else return;$('#saveStatus').textContent='● Сохраняем…';clearTimeout(saveDebounce);saveDebounce=setTimeout(persist,300)});
 $('#backBtn').addEventListener('click',()=>{if(db.route==='board'||db.route==='boardLive'){db.live=false;route('boardlist')}else if(['materialedit','reader','practice','lab','quiz','questionEditor','review'].includes(db.route))route(db.route==='review'?'reviews':'subject');else route('overview')});$('#helpBtn').addEventListener('click',()=>modal(`<h2>Как пользоваться демоверсией</h2><p><b>Преподаватель:</b> выберите предмет, откройте материал, нажмите «Редактировать». В Board нажмите на инструмент слева и щёлкните по холсту. Кадры удаляются через меню ⋯ в нижней ленте, где можно оставить содержимое. Объекты можно выделять Shift + клик, переносить, дублировать и группировать.</p><p><b>Студент:</b> переключите роль вверху, откройте практическую, напишите ответ и сдайте. Затем вернитесь к преподавателю и откройте «Проверка работ».</p><p>Всё сохраняется локально в браузере. Сервер и реальные аккаунты не подключены.</p><div class="actions">${button('Сбросить демо','resetDemo','red')}${button('Закрыть','closeModal','primary')}</div>`));
 document.addEventListener('keydown',e=>{let target=e.target;if(target.matches('input,textarea,select,[contenteditable]'))return;
- if(e.code==='Space'&&['board','boardLive'].includes(db.route)){temp.spaceHeld=true;$('#boardCanvas')?.classList.add('space-pan');e.preventDefault();return}if(['board','boardLive'].includes(db.route)){if((e.key==='Delete'||e.key==='Backspace')&&!db.live){act('deleteSelected');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyZ'){act(e.shiftKey?'redo':'undo');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyY'){act('redo');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyC'&&!db.live){act('copySelection');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyV'&&!db.live){act('pasteSelection');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyD'&&!db.live){act('duplicateObj');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyG'&&!db.live){act('groupObjects');e.preventDefault()}else if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)&&!db.live){const ids=(db.selectedIds||[]).length?db.selectedIds:db.chosen?[db.chosen]:[];let objs=getBoard().objects.filter(o=>ids.includes(o.id)&&!o.locked);if(objs.length){snapshot();let step=e.shiftKey?10:1;objs.forEach(o=>{o.x=o.x+(e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0);o.y=o.y+(e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0)});saveBoard();e.preventDefault()}}else if(!e.ctrlKey&&!e.metaKey){let keymap={KeyV:'select',KeyH:'hand',KeyP:'pen',KeyE:'eraser',KeyC:'arrow',KeyT:'text',KeyN:'sticky',KeyS:'rect',KeyF:'frame',KeyQ:'poll'};const chosenTool=keymap[e.code];if(chosenTool){setTool(chosenTool);e.preventDefault()}}}});
+ if(e.code==='Space'&&['board','boardLive'].includes(db.route)){temp.spaceHeld=true;$('#boardCanvas')?.classList.add('space-pan');e.preventDefault();return}if(['board','boardLive'].includes(db.route)){if((e.key==='Delete'||e.key==='Backspace')&&!db.live){act('deleteSelected');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyZ'){act(e.shiftKey?'redo':'undo');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyY'){act('redo');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyA'&&!db.live){act('selectAllBoard');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyC'&&!db.live){act('copySelection');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyV'&&!db.live){act('pasteSelection');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyD'&&!db.live){act('duplicateObj');e.preventDefault()}else if((e.ctrlKey||e.metaKey)&&e.code==='KeyG'&&!db.live){act('groupObjects');e.preventDefault()}else if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)&&!db.live){const ids=(db.selectedIds||[]).length?db.selectedIds:db.chosen?[db.chosen]:[];let objs=getBoard().objects.filter(o=>ids.includes(o.id)&&!o.locked);if(objs.length){snapshot();let step=e.shiftKey?10:1;objs.forEach(o=>{o.x=o.x+(e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0);o.y=o.y+(e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0)});saveBoard();e.preventDefault()}}else if(!e.ctrlKey&&!e.metaKey){let keymap={KeyV:'select',KeyH:'hand',KeyP:'pen',KeyE:'eraser',KeyC:'arrow',KeyT:'text',KeyN:'sticky',KeyS:'rect',KeyF:'frame',KeyQ:'poll'};const chosenTool=keymap[e.code];if(chosenTool){setTool(chosenTool);e.preventDefault()}}}});
 document.addEventListener('keyup',e=>{if(e.code==='Space'){temp.spaceHeld=false;$('#boardCanvas')?.classList.remove('space-pan')}});draw();window.CollegeLectureAPI={getState:()=>db,getMat,persist,route,draw,act,esc,notify};window.CollegeDemo={getState:()=>structuredClone(db),reset:()=>{db=initial();persist();draw()},goto:r=>route(r),createBoard:()=>act('newBoard'),snapshot:()=>JSON.stringify(db)};
 })();
 
