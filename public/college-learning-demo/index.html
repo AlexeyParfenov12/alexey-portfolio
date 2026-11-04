@@ -784,7 +784,7 @@ case 'pasteSelection':{
 }
 case 'deleteSelected':{if(db.live)return;
  const drawings=temp.selectedDrawings?.length?[...temp.selectedDrawings]:temp.selectedArrow?[temp.selectedArrow]:[];
- const ids=(db.selectedIds||[]).length?db.selectedIds:db.chosen?[db.chosen]:[];if(!ids.length)return;
+ const ids=(db.selectedIds||[]).length?db.selectedIds:db.chosen?[db.chosen]:[];if(!ids.length&&!drawings.length)return;
  const frames=ids.map(id=>b.objects.find(o=>o.id===id)).filter(o=>o?.type==='frame');if(frames.length){
  if(frames.length===1&&ids.length===1)frameDeleteDialog(frames[0].id);
  else frameDeleteBatchDialog(frames.map(f=>f.id));return;
