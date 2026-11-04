@@ -123,6 +123,10 @@ input::placeholder, textarea::placeholder { color: #526960; opacity: 1; }
 .learning-table th{background:#e6f5ef;font-weight:650}
 .learning-table-editor{background:#fff;border:1px solid #dce5e1;border-radius:10px;padding:10px;min-width:0}
 .learning-table-editor .learning-table td{padding:0}
+.learning-cell-shell{position:relative;min-width:0;width:100%;height:100%;display:flex;align-items:stretch}
+.learning-cell-shell input{flex:1;min-width:0!important;width:100%}
+.learning-col-resizer{position:absolute;top:0;right:-5px;bottom:0;width:10px;z-index:5;cursor:col-resize;touch-action:none;background:transparent}
+.learning-col-resizer:hover,.learning-col-resizer:focus{background:#17978955;outline:none}
 .learning-table-editor .learning-table td input{width:100%;min-width:78px;border:0;border-radius:0;padding:8px;background:transparent;color:#17211e}
 .learning-table-editor .learning-table td input:focus{outline:2px solid #0d6b61;outline-offset:-2px}
 .learning-table-actions{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
@@ -311,19 +315,33 @@ function parseLearningTable(value){
  const cols=Math.max(2,...rows.map(r=>r.length));
  return rows.map(r=>Array.from({length:cols},(_,i)=>r[i]??''));
 }
-function learningTableView(value){
- const rows=parseLearningTable(value);
- return '<div class="learning-table-scroll"><table class="learning-table"><tbody>'+rows.map((r,i)=>
-  '<tr>'+r.map(cell=>i===0?'<th>'+esc(cell)+'</th>':'<td>'+esc(cell)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+
+function learningTableWidths(item,count){
+ const src=Array.isArray(item?.colWidths)?item.colWidths:[];
+ return Array.from({length:count},(_,i)=>Math.max(58,Math.min(800,Math.round(Number(src[i])||140))));
+}
+function learningTableColgroup(widths){
+ return '<colgroup>'+widths.map(w=>'<col style="width:'+w+'px">').join('')+'</colgroup>';
+}
+function learningTableView(value,storedWidths){
+ const rows=parseLearningTable(value),widths=learningTableWidths({colWidths:storedWidths},rows[0].length);
+ const total=widths.reduce((a,b)=>a+b,0);
+ return '<div class="learning-table-scroll"><table class="learning-table" style="table-layout:fixed;width:'+total+'px;min-width:'+total+'px">'+learningTableColgroup(widths)+'<tbody>'+
+ rows.map((r,i)=>'<tr>'+r.map(cell=>i===0?'<th>'+esc(cell)+'</th>':'<td>'+esc(cell)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
 }
 function tableEditMarkup(id,value,kind='material'){
  const rows=parseLearningTable(value);
+ const item=kind==='board'?getBoard().objects.find(o=>o.id===id):
+  [...(getMat()?.blocks||[]),...(getMat()?.learningBlocks||[])].find(o=>o.id===id);
+ const widths=learningTableWidths(item,rows[0].length),total=widths.reduce((a,b)=>a+b,0);
  return '<div class="learning-table-editor" data-grid-id="'+esc(id)+'" data-grid-kind="'+kind+'">'+
  '<div class="learning-table-actions"><button type="button" data-grid-operation="add-row">+ Строка</button><button type="button" data-grid-operation="add-column">+ Столбец</button><button type="button" data-grid-operation="delete-row">− Строка</button><button type="button" data-grid-operation="delete-column">− Столбец</button></div>'+
- '<div class="learning-table-scroll"><table class="learning-table"><tbody>'+
+ '<div class="learning-table-scroll"><table class="learning-table" style="table-layout:fixed;width:'+total+'px;min-width:'+total+'px">'+learningTableColgroup(widths)+'<tbody>'+
  rows.map((row,ri)=>'<tr>'+row.map((cell,ci)=>
- '<td><input data-grid-cell data-r="'+ri+'" data-c="'+ci+'" aria-label="Строка '+(ri+1)+', столбец '+(ci+1)+'" value="'+esc(cell)+'"></td>').join('')+'</tr>').join('')+
- '</tbody></table></div><small>Изменения ячеек сохраняются. Можно вставлять значения из Excel через копирование.</small></div>';
+ '<td><div class="learning-cell-shell"><input data-grid-cell data-r="'+ri+'" data-c="'+ci+'" aria-label="Строка '+(ri+1)+', столбец '+(ci+1)+'" value="'+esc(cell)+'">'+
+ (ri===0?'<span role="separator" tabindex="0" aria-orientation="vertical" aria-label="Изменить ширину столбца '+(ci+1)+'" class="learning-col-resizer" data-grid-resize-col="'+ci+'" title="Перетащите, чтобы изменить ширину столбца"></span>':'')+
+ '</div></td>').join('')+'</tr>').join('')+
+ '</tbody></table></div><small>Изменение ширины — перетаскиванием разделителя в первой строке или стрелками на клавиатуре. Можно вставлять данные из Excel.</small></div>';
 }
 function learningTableItem(wrap){
  const id=wrap?.dataset.gridId,kind=wrap?.dataset.gridKind;
@@ -336,6 +354,51 @@ function setLearningTableValue(wrap,rows){
  if(wrap.dataset.gridKind==='board')item.text=value;else item.value=value;
  persist();
 }
+
+function resizeLearningColumn(wrap,index,delta){
+ const item=learningTableItem(wrap);if(!item)return;
+ const value=wrap.dataset.gridKind==='board'?item.text:item.value;
+ const rows=parseLearningTable(value),widths=learningTableWidths(item,rows[0].length);
+ if(index<0||index>=widths.length)return;
+ widths[index]=Math.max(58,Math.min(800,Math.round(widths[index]+delta)));
+ item.colWidths=widths;
+ const table=wrap.querySelector('.learning-table'),cols=table?.querySelectorAll('col');
+ if(cols?.[index])cols[index].style.width=widths[index]+'px';
+ if(table){const total=widths.reduce((a,b)=>a+b,0);table.style.width=total+'px';table.style.minWidth=total+'px'}
+ persist();
+}
+document.addEventListener('pointerdown',e=>{
+ const handle=e.target.closest('[data-grid-resize-col]');if(!handle)return;
+ const wrap=handle.closest('[data-grid-id]');if(!wrap||!learningTableItem(wrap))return;
+ e.preventDefault();e.stopPropagation();
+ const index=Number(handle.dataset.gridResizeCol),startX=e.clientX;
+ const item=learningTableItem(wrap);
+ const original=learningTableWidths(item,parseLearningTable(wrap.dataset.gridKind==='board'?item.text:item.value)[0].length)[index];
+ const onMove=ev=>{
+   ev.preventDefault();
+   const item=learningTableItem(wrap);if(!item)return;
+   const width=Math.max(58,Math.min(800,Math.round(original+ev.clientX-startX)));
+   const widths=learningTableWidths(item,parseLearningTable(wrap.dataset.gridKind==='board'?item.text:item.value)[0].length);
+   widths[index]=width;item.colWidths=widths;
+   const table=wrap.querySelector('.learning-table'),cols=table?.querySelectorAll('col');
+   if(cols?.[index])cols[index].style.width=width+'px';
+   if(table){const total=widths.reduce((a,b)=>a+b,0);table.style.width=total+'px';table.style.minWidth=total+'px'}
+ };
+ const onUp=()=>{
+  document.removeEventListener('pointermove',onMove,true);
+  document.removeEventListener('pointerup',onUp,true);
+  document.removeEventListener('pointercancel',onUp,true);
+  persist();
+ };
+ document.addEventListener('pointermove',onMove,true);
+ document.addEventListener('pointerup',onUp,true);
+ document.addEventListener('pointercancel',onUp,true);
+},true);
+document.addEventListener('keydown',e=>{
+ const handle=e.target.closest('[data-grid-resize-col]');if(!handle||!['ArrowLeft','ArrowRight'].includes(e.key))return;
+ e.preventDefault();const wrap=handle.closest('[data-grid-id]');
+ resizeLearningColumn(wrap,Number(handle.dataset.gridResizeCol),(e.key==='ArrowRight'?10:-10));
+},true);
 document.addEventListener('focusin',e=>{
  const cell=e.target.closest('[data-grid-cell]');if(!cell)return;
  const wrap=cell.closest('[data-grid-id]');
@@ -384,7 +447,7 @@ function boardFontStack(name){
 }
 function boardObject(o){const idx=getBoard().objects.findIndex(item=>item.id===o.id),zIndex=o.type==='frame'?1:20+Math.max(0,idx);const txt=o.text||'',style=`z-index:${zIndex};left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px;background:${o.fill||'#ffffff'};color:${boardTextColor(o.fill)};font-size:${o.size||17}px;transform:rotate(${Number(o.rotation)||0}deg);opacity:${o.opacity??1};border-radius:${o.radius??9}px;border:${o.borderWidth??1}px ${o.borderStyle||'solid'} ${o.borderColor||'#8cb8aa'};font-family:${boardFontStack(o.fontFamily)};font-weight:${o.fontWeight||400};box-shadow:${o.shadow?'0 8px 22px #073f3a25':'none'}`;
  const ids=db.selectedIds||[],isSelected=db.chosen===o.id||ids.includes(o.id);
- return `<div class="board-obj ${o.type} ${db.chosen===o.id?'selected':''} ${ids.length>1&&ids.includes(o.id)?'multi-selected':''} ${o.locked?'locked':''}" data-obj="${o.id}" style="${style}"><div class="obj-text" style="text-align:${o.textAlign||'center'};justify-content:${o.textAlign==='left'?'flex-start':o.textAlign==='right'?'flex-end':'center'};color:${o.textColor||boardTextColor(o.fill)}">${o.type==='image'&&o.src?`<img src="${esc(o.src)}" alt="${esc(o.text||'Изображение')}" style="max-width:100%;max-height:100%;object-fit:${o.imageFit==='cover'?'cover':'contain'};pointer-events:none">`:o.type==='table'?learningTableView(o.text):esc(txt)}</div>${isSelected&&!db.live&&!o.locked?`<div class="resize" data-resize="${o.id}"></div>`:''}</div>`
+ return `<div class="board-obj ${o.type} ${db.chosen===o.id?'selected':''} ${ids.length>1&&ids.includes(o.id)?'multi-selected':''} ${o.locked?'locked':''}" data-obj="${o.id}" style="${style}"><div class="obj-text" style="text-align:${o.textAlign||'center'};justify-content:${o.textAlign==='left'?'flex-start':o.textAlign==='right'?'flex-end':'center'};color:${o.textColor||boardTextColor(o.fill)}">${o.type==='image'&&o.src?`<img src="${esc(o.src)}" alt="${esc(o.text||'Изображение')}" style="max-width:100%;max-height:100%;object-fit:${o.imageFit==='cover'?'cover':'contain'};pointer-events:none">`:o.type==='table'?learningTableView(o.text,o.colWidths):esc(txt)}</div>${isSelected&&!db.live&&!o.locked?`<div class="resize" data-resize="${o.id}"></div>`:''}</div>`
 }
 
 function addBoardImage(){let input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp';input.onchange=()=>{let f=input.files&&input.files[0];if(!f)return;if(f.size>750000){notify('Для автономного прототипа выберите изображение меньше 750 КБ');return}const reader=new FileReader();reader.onload=()=>{snapshot();let o={id:uid(),type:'image',x:260,y:240,w:320,h:240,text:f.name,src:String(reader.result),fill:'#ffffff'};getBoard().objects.push(o);db.chosen=o.id;db.tool='select';saveBoard();notify('Изображение добавлено')};reader.readAsDataURL(f)};input.click()}
@@ -733,7 +796,7 @@ document.addEventListener('keyup',e=>{if(e.code==='Space'){temp.spaceHeld=false;
     case 'video':return b.url?`<p><a href="${esc(b.url)}" target="_blank" rel="noopener noreferrer">▶ Открыть видео</a></p>`:'<p>Видео не добавлено</p>';
     case 'board':return `<div class="lecture-embed">◇ <b>Интерактивная доска</b><button class="btn" data-lecture="open-board" data-block="${b.id}">Открыть доску</button></div>`;
     case 'file':return b.url?`<a href="${esc(b.url)}" download="${esc(b.fileName||'material')}">▤ Скачать ${esc(b.fileName||'файл')}</a>`:'<p>Файл не добавлен</p>';
-    case 'table':return tableHTML(b.value);
+    case 'table':return learningTableView(b.value,b.colWidths);
     case 'divider':return '<hr>';
     case 'question':case 'poll':return `<div class="lecture-check"><b>${esc(b.type==='poll'?'Опрос':'Проверка знаний')}</b><p>${esc(b.value)}</p>${(b.options||[]).map((x,i)=>`<label><input type="radio" name="q_${b.id}" value="${i}" ${String(answer)===String(i)?'checked':''}> ${esc(x)}</label>`).join('')}<button class="btn small" data-lecture="answer" data-block="${b.id}">${answer===undefined?'Ответить':'Изменить ответ'}</button>${answer!==undefined?`<small class="lecture-answer-note">Ваш ответ сохранён в локальном прототипе.${b.type==='question'?' Верный ответ можно узнать после проверки преподавателя.':''}</small>`:''}</div>`;
     default:return `<p>${esc(b.value||'')}</p>`;
@@ -811,7 +874,7 @@ const getResponses=m=>db.answers['c6:'+m.id]??(db.answers['c6:'+m.id]={});
 function measureCols(b){return b.columns||[]}
 function measurementResult(b,r,c,resp){if(c.kind!=='calc')return resp[b.id+':'+r+':'+c.key]??'';const m=String(c.formula||'').replace(/\s/g,'').match(/^([A-Za-z][A-Za-z0-9_]*)([+*/-])([A-Za-z][A-Za-z0-9_]*)$/);if(!m)return '—';const a=Number(resp[b.id+':'+r+':'+m[1]]),d=Number(resp[b.id+':'+r+':'+m[3]]);if(resp[b.id+':'+r+':'+m[1]]==null||resp[b.id+':'+r+':'+m[3]]==null||!Number.isFinite(a)||!Number.isFinite(d)||(m[2]==='/'&&d===0))return '—';return Number(({'+':a+d,'-':a-d,'*':a*d,'/':d?a/d:NaN})[m[2]]).toFixed(2)}
 function graphSVG(b,arr,resp){const tab=arr.find(x=>x.type==='measurement');if(!tab)return '<p class="c6-hint">Сначала добавьте таблицу измерений</p>';const xs=[],ys=[];for(let r=0;r<(tab.rows||3);r++){const xc=tab.columns.find(c=>c.key===b.xKey),yc=tab.columns.find(c=>c.key===b.yKey);if(!xc||!yc)break;let x=Number(measurementResult(tab,r,xc,resp)),y=Number(measurementResult(tab,r,yc,resp));if(measurementResult(tab,r,xc,resp)!==''&&measurementResult(tab,r,yc,resp)!==''&&Number.isFinite(x)&&Number.isFinite(y)){xs.push(x);ys.push(y)}}if(!xs.length)return '<p class="c6-hint">Введите измерения, чтобы построить график</p>';const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),dx=maxX-minX||1,dy=maxY-minY||1;const pts=xs.map((x,i)=>(50+((x-minX)/dx)*420).toFixed(1)+','+(230-((ys[i]-minY)/dy)*180).toFixed(1)).join(' ');return '<svg viewBox="0 0 520 270" role="img" aria-label="График '+E(b.yKey)+' от '+E(b.xKey)+'"><line x1="48" y1="20" x2="48" y2="235" stroke="#829b91"/><line x1="48" y1="235" x2="490" y2="235" stroke="#829b91"/><polyline points="'+pts+'" fill="none" stroke="#0d6b61" stroke-width="3"/>'+pts.split(' ').map(p=>{let [x,y]=p.split(',');return '<circle cx="'+x+'" cy="'+y+'" r="5" fill="#0d6b61"/>'}).join('')+'<text x="470" y="255" font-size="14" fill="#17211e">'+E(b.xKey||'X')+'</text><text x="20" y="20" font-size="14" fill="#17211e">'+E(b.yKey||'Y')+'</text></svg>'}
-function viewBlock(b,arr,resp){switch(b.type){case 'heading':return '<h2>'+E(b.value)+'</h2>';case 'text':case 'note':case 'equipment':case 'safety':return '<p class="c6-multiline">'+E(b.value)+'</p>';case 'code':return '<pre class="c6-code">'+E(b.value)+'</pre>';case 'image':return b.url?'<img class="c6-image" src="'+E(b.url)+'" alt="'+E(b.value||'Иллюстрация')+'">':'<p>Изображение пока не добавлено</p>';case 'video':case 'file':return b.url?'<a href="'+E(b.url)+'" target="_blank" rel="noopener noreferrer">'+E(b.value||'Открыть материал')+'</a>':'<p class="c6-hint">Материал пока не добавлен</p>';case 'board':return '<button class="btn" data-c6="open-board" data-board="'+E(b.boardId)+'">◇ Открыть интерактивную доску</button>';case 'divider':return '<hr>';case 'table':return learningTableView(b.value);case 'task':return '<h3>'+E(b.title||'Задание')+'</h3><p class="c6-multiline">'+E(b.value)+'</p>'+(b.fields||[]).map(f=>'<div class="c6-task-answer"><label>'+E(f.label)+(f.required?' *':'')+'</label>'+(f.type==='file'?'<input type="file" data-c6-response-file="'+f.id+'" data-block="'+b.id+'"><small class="c6-muted">В демо сохраняется только название файла.</small>':f.type==='board'?'<button class="btn small" data-c6="open-board" data-board="'+E(db.boards[0]?.id||'')+'">Открыть доску</button><textarea data-c6-response="'+f.id+'" data-block="'+b.id+'" rows="2" placeholder="Опишите результат на доске">'+E(resp[b.id+':'+f.id]||'')+'</textarea>':f.type==='number'?'<input type="number" data-c6-response="'+f.id+'" data-block="'+b.id+'" value="'+E(resp[b.id+':'+f.id]||'')+'">':'<textarea data-c6-response="'+f.id+'" data-block="'+b.id+'" rows="'+(f.type==='code'?7:3)+'" class="'+(f.type==='code'?'c6-code-input':'')+'" placeholder="Введите ответ">'+E(resp[b.id+':'+f.id]||'')+'</textarea>')+'</div>').join('');case 'measurement':return '<h3>'+E(b.title||'Измерения')+'</h3><div class="c6-tablewrap"><table><thead><tr><th>№</th>'+measureCols(b).map(c=>'<th>'+E(c.label||c.key)+'<small>'+E(c.unit||'')+'</small></th>').join('')+'</tr></thead><tbody>'+Array.from({length:b.rows||3},(_,r)=>'<tr><td>'+(r+1)+'</td>'+measureCols(b).map(c=>'<td>'+(c.kind==='calc'?'<strong data-c6-computed="'+b.id+':'+r+':'+c.key+'">'+E(measurementResult(b,r,c,resp))+'</strong>':'<input type="number" step="any" data-c6-measure="'+b.id+':'+r+':'+c.key+'" value="'+E(resp[b.id+':'+r+':'+c.key]??'')+'" aria-label="'+E(c.label)+' строка '+(r+1)+'">')+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';case 'graph':return '<h3>'+E(b.title||'График')+'</h3><div class="c6-graph">'+graphSVG(b,arr,resp)+'</div>';case 'conclusion':return '<h3>'+E(b.title||'Вывод')+'</h3><p>'+E(b.value||'')+'</p><textarea data-c6-response="conclusion" data-block="'+b.id+'" rows="5" placeholder="Сформулируйте вывод">'+E(resp[b.id+':conclusion']||'')+'</textarea>';default:return '<p>'+E(b.value||'')+'</p>'}}
+function viewBlock(b,arr,resp){switch(b.type){case 'heading':return '<h2>'+E(b.value)+'</h2>';case 'text':case 'note':case 'equipment':case 'safety':return '<p class="c6-multiline">'+E(b.value)+'</p>';case 'code':return '<pre class="c6-code">'+E(b.value)+'</pre>';case 'image':return b.url?'<img class="c6-image" src="'+E(b.url)+'" alt="'+E(b.value||'Иллюстрация')+'">':'<p>Изображение пока не добавлено</p>';case 'video':case 'file':return b.url?'<a href="'+E(b.url)+'" target="_blank" rel="noopener noreferrer">'+E(b.value||'Открыть материал')+'</a>':'<p class="c6-hint">Материал пока не добавлен</p>';case 'board':return '<button class="btn" data-c6="open-board" data-board="'+E(b.boardId)+'">◇ Открыть интерактивную доску</button>';case 'divider':return '<hr>';case 'table':return learningTableView(b.value,b.colWidths);case 'task':return '<h3>'+E(b.title||'Задание')+'</h3><p class="c6-multiline">'+E(b.value)+'</p>'+(b.fields||[]).map(f=>'<div class="c6-task-answer"><label>'+E(f.label)+(f.required?' *':'')+'</label>'+(f.type==='file'?'<input type="file" data-c6-response-file="'+f.id+'" data-block="'+b.id+'"><small class="c6-muted">В демо сохраняется только название файла.</small>':f.type==='board'?'<button class="btn small" data-c6="open-board" data-board="'+E(db.boards[0]?.id||'')+'">Открыть доску</button><textarea data-c6-response="'+f.id+'" data-block="'+b.id+'" rows="2" placeholder="Опишите результат на доске">'+E(resp[b.id+':'+f.id]||'')+'</textarea>':f.type==='number'?'<input type="number" data-c6-response="'+f.id+'" data-block="'+b.id+'" value="'+E(resp[b.id+':'+f.id]||'')+'">':'<textarea data-c6-response="'+f.id+'" data-block="'+b.id+'" rows="'+(f.type==='code'?7:3)+'" class="'+(f.type==='code'?'c6-code-input':'')+'" placeholder="Введите ответ">'+E(resp[b.id+':'+f.id]||'')+'</textarea>')+'</div>').join('');case 'measurement':return '<h3>'+E(b.title||'Измерения')+'</h3><div class="c6-tablewrap"><table><thead><tr><th>№</th>'+measureCols(b).map(c=>'<th>'+E(c.label||c.key)+'<small>'+E(c.unit||'')+'</small></th>').join('')+'</tr></thead><tbody>'+Array.from({length:b.rows||3},(_,r)=>'<tr><td>'+(r+1)+'</td>'+measureCols(b).map(c=>'<td>'+(c.kind==='calc'?'<strong data-c6-computed="'+b.id+':'+r+':'+c.key+'">'+E(measurementResult(b,r,c,resp))+'</strong>':'<input type="number" step="any" data-c6-measure="'+b.id+':'+r+':'+c.key+'" value="'+E(resp[b.id+':'+r+':'+c.key]??'')+'" aria-label="'+E(c.label)+' строка '+(r+1)+'">')+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';case 'graph':return '<h3>'+E(b.title||'График')+'</h3><div class="c6-graph">'+graphSVG(b,arr,resp)+'</div>';case 'conclusion':return '<h3>'+E(b.title||'Вывод')+'</h3><p>'+E(b.value||'')+'</p><textarea data-c6-response="conclusion" data-block="'+b.id+'" rows="5" placeholder="Сформулируйте вывод">'+E(resp[b.id+':conclusion']||'')+'</textarea>';default:return '<p>'+E(b.value||'')+'</p>'}}
 function reader(){const m=current(),arr=init(m),resp=getResponses(m),submitted=db.attempts.filter(a=>a.materialId===m.id).at(-1);view.innerHTML='<div class="page wide c6"><div class="c6-header"><button class="btn small" data-c6="back">← К предмету</button><span class="c6-grow"></span>'+(db.role==='teacher'?'<button class="btn small" data-c6="edit">Вернуться в редактор</button>':'')+'</div><div class="c6-document"><span class="c6-caption">'+E(typeNames[m.type])+' · '+(db.role==='teacher'?'Предпросмотр':'Работа студента')+'</span><h1>'+E(m.title)+'</h1>'+(m.deadline?'<p class="c6-hint">Срок сдачи: '+E(m.deadline)+'</p>':'')+arr.map(b=>'<div class="c6-view-block">'+viewBlock(b,arr,resp)+'</div>').join('')+'<div class="c6-footer"><span class="c6-muted">'+(submitted?'Последняя попытка: '+(submitted.status==='returned'?'на доработку':submitted.status==='reviewed'?'проверена':'ожидает проверки'):'Черновик хранится в этом браузере')+'</span><button data-c6="save-response" class="btn">Сохранить</button><button data-c6="submit" class="btn primary">Сдать работу</button></div></div></div>'}
 function quizView(){const m=current(),arr=init(m),q=arr[Math.max(0,Math.min(questionIndex,arr.length-1))],resp=getResponses(m);if(!q){view.innerHTML='<div class="page c6"><h2>В тесте нет вопросов</h2><button data-c6="back">Назад</button></div>';return}
  const typ=q.type||'single',val=resp['q:'+q.id],opts=q.options||[];let body=['single','multi','boolean'].includes(typ)?opts.map((op,i)=>'<label class="c6-choice"><input type="'+(typ==='multi'?'checkbox':'radio')+'" name="c6-quiz" data-c6-quiz-option="'+i+'" data-qid="'+q.id+'" '+(typ==='multi'?(Array.isArray(val)&&val.includes(i)?'checked':''):(val===i?'checked':''))+'><span>'+E(op)+'</span></label>').join(''):typ==='numeric'?'<input type="number" step="any" data-c6-quiz-text="'+q.id+'" value="'+E(val??'')+'">':'<textarea data-c6-quiz-text="'+q.id+'" rows="6" placeholder="Ваш ответ">'+E(val??'')+'</textarea>';
