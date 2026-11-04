@@ -134,6 +134,27 @@ input::placeholder, textarea::placeholder { color: #526960; opacity: 1; }
 .learning-table-actions button{border:1px solid #dce5e1;background:white;color:#073f3a;border-radius:6px;padding:6px 8px;font-size:12px}
 .board-obj.table .obj-text{display:block!important;overflow:auto;padding:3px}
 .board-obj.table .learning-table td,.board-obj.table .learning-table th{padding:7px;font-size:12px}
+.board-obj.code,.board-obj.formula{overflow:hidden}
+.board-obj.code .obj-text,.board-obj.formula .obj-text{display:block!important;overflow:hidden;padding:0;width:100%;height:100%;color:inherit}
+.board-code-panel{height:100%;display:flex;flex-direction:column;overflow:hidden;background:#172a2c;color:#d3efe8;border-radius:inherit}
+.board-code-head{display:flex;align-items:center;gap:10px;padding:9px 12px;background:#0e1b20;color:#c5f1e8;font:11px Inter,system-ui,sans-serif}
+.board-code-head b{font-size:12px}.board-code-head>span:last-child{margin-left:auto;font-size:9px;letter-spacing:1.1px;color:#84aea2}
+.board-code-dots{letter-spacing:2px;color:#e5b65f;font-size:10px}
+.board-code-lines{flex:1;overflow:auto;padding:9px 2px;font:13px Consolas,'Courier New',monospace}
+.board-code-line{display:grid;grid-template-columns:34px max-content;gap:10px;min-height:20px}
+.board-code-number{text-align:right;color:#8cb0a8;padding-right:4px;user-select:none;border-right:1px solid #3b5654}
+.board-code-source{color:#e5fbf6;white-space:pre;tab-size:4}
+.board-formula-panel{height:100%;display:flex;flex-direction:column;gap:8px;overflow:auto;text-align:left;padding:13px;background:#fcfffd;color:#18352e;border-radius:inherit}
+.board-formula-head{color:#196f63;letter-spacing:1.1px;font:bold 10px Inter,system-ui,sans-serif}
+.board-formula-expression{font:600 21px Georgia,serif;color:#17392f;overflow-wrap:anywhere}
+.board-formula-variables{display:flex;flex-wrap:wrap;gap:6px}.board-formula-variables span{background:#e7f4ed;padding:3px 8px;border-radius:6px;color:#245b4c;font:12px Inter,system-ui,sans-serif}
+.board-formula-result{margin-top:auto;border-top:1px solid #d8e7dc;padding-top:7px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.board-formula-result small{font:12px Inter,system-ui,sans-serif;color:#50665d}
+.board-formula-result strong{font:700 22px Inter,system-ui,sans-serif;color:#096455}
+.board-formula-result strong span{font-size:12px;color:#4c7564}
+.board-formula-error{font:12px Inter,system-ui,sans-serif;color:#9a3445;background:#ffebef;padding:7px;border-radius:6px}
+.board-special-code{font:13px Consolas,'Courier New',monospace!important;tab-size:4}
+.board-special-properties p{font-size:12px;color:#50665d}
 .board-object-context{position:fixed;z-index:9999;min-width:195px;background:white;color:#17211e;border:1px solid #dce5e1;box-shadow:0 12px 35px #073f3a25;border-radius:12px;padding:6px}
 .board-object-context button{display:block;background:transparent;border:0;width:100%;padding:10px 12px;text-align:left;border-radius:8px;color:inherit;cursor:pointer}
 .board-object-context button:hover{background:#e6f5ef}
@@ -361,13 +382,13 @@ function boardInsertTemplate(kind){const b=getBoard(),specs={
 function boardToolPalette(){return `<div class="board-tools-menu" aria-label="Дополнительные инструменты"><div class="menu-title">Добавить на доску</div><button data-act="boardTemplates" style="grid-column:1/-1">▤ Учебные шаблоны доски</button>${[['ellipse','◯ Овал'],['code','⌘ Код'],['poll','? Вопрос группе'],['image','▧ Изображение'],['diagram','◇ Блок-схема'],['formula','ƒ Формула'],['table','▦ Таблица'],['task','☑ Учебное задание']].map(([t,label])=>`<button data-tool="${t}">${label}</button>`).join('')}</div>`}
 
 function boardMarkup(){
- const b=normalizeBoard(getBoard()),sel=b.objects.find(o=>o.id===db.chosen),ids=(db.selectedIds||[]).filter(id=>b.objects.some(o=>o.id===id)),canText=sel&&!['image','table'].includes(sel.type);
+ const b=normalizeBoard(getBoard()),sel=b.objects.find(o=>o.id===db.chosen),ids=(db.selectedIds||[]).filter(id=>b.objects.some(o=>o.id===id)),canText=sel&&!['image','table','code','formula'].includes(sel.type);
  const tools=[['select','↖','Выделение (V)'],['hand','✋','Перемещение холста (H)'],['pen','✎','Маркер (P)'],['eraser','⌫','Ластик (E)'],['text','T','Текст (T)'],['sticky','▣','Заметка (N)'],['rect','□','Фигура (S)'],['arrow','↗','Стрелка / связь (C)'],['frame','▥','Кадр занятия (F)']];
  return `<div class="board-app ${db.live?'board-live':''}"><div class="board-head"><button class="iconbtn" data-act="boardlist" aria-label="Назад к доскам">←</button><input class="board-title" id="boardTitle" value="${esc(b.title)}" aria-label="Название доски" ${db.live?'readonly':''}><span class="grow"></span>${!db.live?button('↶','undo','small')+button('↷','redo','small')+button('Опрос','pollSetup','small')+button('⋯','boardMore','small')+button('Провести занятие','toggleLive','primary'):button('Опрос','pollSetup','small')+button('Завершить показ','toggleLive','primary')}</div>
  <div class="board-main"><div class="board-canvas ${db.boardGrid===false?'board-no-grid':''}" id="boardCanvas" data-board-tool="${esc(db.tool)}"><div class="board-world" id="boardWorld" style="transform:translate(${db.panX}px,${db.panY}px) scale(${db.zoom})"><svg class="draw-svg board-connections" id="drawSvg" xmlns="http://www.w3.org/2000/svg"><defs><marker id="board-link-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#0d6b61" stroke="none"></path></marker></defs>${boardConnectorMarkup(b)}</svg>${[...b.objects.filter(o=>o.type==='frame'),...b.objects.filter(o=>o.type!=='frame')].map(o=>boardObject(o)).join('')}<svg class="draw-svg board-ink" id="inkSvg" xmlns="http://www.w3.org/2000/svg"><g id="storedPaths">${b.strokes.map(boardStrokePath).join('')}${(db.live||db.showAnnotations)?b.liveStrokes.map(boardStrokePath).join(''):''}</g>${boardConnectorHits(b)}<path id="temporaryPath" d="" stroke="${esc(db.penColor||'#0d6b61')}" stroke-width="${Number(db.penWidth||3)}"></path><path id="temporaryArrow" d="" stroke="${esc(db.penColor||'#0d6b61')}" stroke-width="${Number(db.penWidth||3)}"></path></svg><div id="boardSelectionMarquee" class="board-selection-marquee" hidden></div></div><div id="boardBrushPreview" class="board-brush-preview" aria-hidden="true"></div></div>
  <div class="board-toolbar" aria-label="Инструменты доски">${tools.filter(x=>!db.live||['select','hand','pen','eraser'].includes(x[0])).map(([tool,icon,label])=>`<button data-tool="${tool}" aria-label="${esc(label)}" title="${esc(label)}" class="${db.tool===tool?'active':''}">${boardToolIcon(tool)}</button>`).join('')}${!db.live?`<div class="board-tools-separator"></div><button data-act="boardTools" title="Другие учебные инструменты" aria-label="Открыть палитру инструментов">${boardToolIcon('more')}</button>`:''}<button data-act="deleteSelected" title="Удалить выделенное (Delete)" aria-label="Удалить выделенное" ${(!sel&&!temp.selectedDrawings?.length||db.live)?'disabled':''}>⌫</button></div>
  ${!db.live&&db.boardToolPalette?boardToolPalette():''}${db.tool==='pen'||db.tool==='arrow'?boardColorChoices():''}${['arrow','pen','select'].includes(db.tool)?`<div class="board-tool-hint">${db.tool==='select'?'Выделение: щёлкните по объекту или протяните рамку. Для перемещения холста используйте руку.':db.tool==='pen'?'Маркер: рисуйте поверх объектов. Курсор показывает размер пера.':'Стрелка: протяните линию. Для связи объектов начните на одном и закончите на другом.'}</div>`:''}
- ${!db.live&&sel&&temp.boardInspectorOpen?`<div class="board-inspector"><div class="row space"><b>${ids.length>1?'Группа объектов':'Свойства объекта'}</b><button class="iconbtn" data-act="closeInspector" aria-label="Закрыть свойства">×</button></div>${ids.length>1?`<p class="board-selection-count">Выделено ${ids.length} объектов</p><div class="toolbar">${button('Выровнять слева','alignLeft','small')}${button('Выровнять сверху','alignTop','small')}${button('Группировать','groupObjects','small')}${button('Разгруппировать','ungroupObjects','small')}</div>`:`<label>Тип</label><b>${esc(({frame:'Учебный кадр',text:'Текст',sticky:'Заметка',rect:'Фигура',ellipse:'Овал',code:'Код',poll:'Вопрос',image:'Изображение',diagram:'Схема',formula:'Формула',table:'Таблица',task:'Задание'})[sel.type]||sel.type)}</b>${canText?`<label>${sel.type==='frame'?'Название кадра':'Текст'}</label><textarea id="objText" rows="4" style="width:100%" ${sel.locked?'readonly':''}>${esc(sel.text||'')}</textarea>`:''}${sel.type==='table'?tableEditMarkup(sel.id,sel.text,'board'):''}${sel.type==='image'?`<div class="board-image-properties"><label>Описание изображения<input id="objImageAlt" value="${esc(sel.text||'Изображение')}"></label><label>Заполнение<select id="objImageFit"><option value="contain" ${sel.imageFit!=='cover'?'selected':''}>Вписать целиком</option><option value="cover" ${sel.imageFit==='cover'?'selected':''}>Заполнить область</option></select></label>${button('Заменить изображение','replaceBoardImage','small')}</div>`:''}${sel.type!=='image'?`<label>Заливка</label><input type="color" id="objColor" ${sel.locked?'disabled':''} value="${sel.fill==='transparent'?'#ffffff':sel.fill||'#ffffff'}">`:''}${canText?`<label>Размер текста</label><input id="objFontSize" type="number" min="9" max="100" ${sel.locked?'disabled':''} value="${sel.size||17}">
+ ${!db.live&&sel&&temp.boardInspectorOpen?`<div class="board-inspector"><div class="row space"><b>${ids.length>1?'Группа объектов':'Свойства объекта'}</b><button class="iconbtn" data-act="closeInspector" aria-label="Закрыть свойства">×</button></div>${ids.length>1?`<p class="board-selection-count">Выделено ${ids.length} объектов</p><div class="toolbar">${button('Выровнять слева','alignLeft','small')}${button('Выровнять сверху','alignTop','small')}${button('Группировать','groupObjects','small')}${button('Разгруппировать','ungroupObjects','small')}</div>`:`<label>Тип</label><b>${esc(({frame:'Учебный кадр',text:'Текст',sticky:'Заметка',rect:'Фигура',ellipse:'Овал',code:'Код',poll:'Вопрос',image:'Изображение',diagram:'Схема',formula:'Формула',table:'Таблица',task:'Задание'})[sel.type]||sel.type)}</b>${canText?`<label>${sel.type==='frame'?'Название кадра':'Текст'}</label><textarea id="objText" rows="4" style="width:100%" ${sel.locked?'readonly':''}>${esc(sel.text||'')}</textarea>`:''}${sel.type==='table'?tableEditMarkup(sel.id,sel.text,'board'):''}${['code','formula'].includes(sel.type)?'<div class="board-special-properties">'+button(sel.type==='code'?'Редактировать код':'Формула и переменные','editSpecial:'+sel.id,'small')+'<p>'+(sel.type==='code'?'Язык: '+esc(boardCodeLabel(sel)):'Результат вычисляется из переменных')+'</p></div>':''}${sel.type==='image'?`<div class="board-image-properties"><label>Описание изображения<input id="objImageAlt" value="${esc(sel.text||'Изображение')}"></label><label>Заполнение<select id="objImageFit"><option value="contain" ${sel.imageFit!=='cover'?'selected':''}>Вписать целиком</option><option value="cover" ${sel.imageFit==='cover'?'selected':''}>Заполнить область</option></select></label>${button('Заменить изображение','replaceBoardImage','small')}</div>`:''}${sel.type!=='image'?`<label>Заливка</label><input type="color" id="objColor" ${sel.locked?'disabled':''} value="${sel.fill==='transparent'?'#ffffff':sel.fill||'#ffffff'}">`:''}${canText?`<label>Размер текста</label><input id="objFontSize" type="number" min="9" max="100" ${sel.locked?'disabled':''} value="${sel.size||17}">
  `:''}
  <details class="board-props-section" open><summary>Положение и размеры</summary><div class="board-props-grid">
  <label>X<input type="number" id="objX" value="${Math.round(sel.x)}"></label>
@@ -543,14 +564,64 @@ function boardFontStack(name){
  const allowed={system:'Inter,system-ui,sans-serif',serif:'Georgia,serif',monospace:'Consolas,monospace',roboto:'Roboto,Arial,sans-serif',manrope:'Manrope,Arial,sans-serif',montserrat:'Montserrat,Arial,sans-serif',rubik:'Rubik,Arial,sans-serif',ptsans:"'PT Sans',Arial,sans-serif",caveat:'Caveat,cursive'};
  return allowed[name]||allowed.system;
 }
+
+function boardCodeLabel(o){
+ return ({python:'Python',javascript:'JavaScript',typescript:'TypeScript',csharp:'C#',sql:'SQL',html:'HTML',css:'CSS',plain:'Текст'})[o.codeLang]||'Python';
+}
+function boardCodeHTML(o){
+ const lines=String(o.text||'').replace(/\r/g,'').split('\n');
+ return '<div class="board-code-panel"><div class="board-code-head"><span class="board-code-dots">● ● ●</span><b>'+esc(boardCodeLabel(o))+'</b><span>КОД</span></div>'+
+ '<div class="board-code-lines">'+lines.map((line,i)=>'<div class="board-code-line"><span class="board-code-number">'+(i+1)+'</span><span class="board-code-source">'+(line?esc(line):'&nbsp;')+'</span></div>').join('')+'</div></div>';
+}
+function boardMathCompute(expr,variables){
+ const source=String(expr||'').replace(/,/g,'.').replace(/\s/g,'');
+ const re=/(?:\d+(?:\.\d+)?|\.\d+|[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*|[()+\-*/^])/gy;
+ const tokens=[];let p=0;while(p<source.length){re.lastIndex=p;let m=re.exec(source);if(!m)throw Error('Недопустимый символ');tokens.push(m[0]);p=re.lastIndex}
+ if(!tokens.length)throw Error('Введите выражение');
+ let i=0;const peek=()=>tokens[i];
+ function primary(){if(peek()==='('){i++;const v=expression();if(peek()!==')')throw Error('Не закрыта скобка');i++;return v}
+  const word=tokens[i++];if(word===undefined)throw Error('Ожидается число');
+  if(/^\d/.test(word)||word.startsWith('.'))return Number(word);
+  if(Object.prototype.hasOwnProperty.call(variables,word))return variables[word];
+  throw Error('Неизвестная переменная '+word)}
+ function power(){let v=primary();if(peek()==='^'){i++;v=Math.pow(v,unary())}return v}
+ function unary(){if(peek()==='-'){i++;return -unary()}if(peek()==='+'){i++;return unary()}return power()}
+ function term(){let v=unary();while(peek()==='*'||peek()==='/'){const op=tokens[i++],right=unary();if(op==='/'&&right===0)throw Error('Деление на ноль');v=op==='*'?v*right:v/right}return v}
+ function expression(){let v=term();while(peek()==='+'||peek()==='-'){const op=tokens[i++],right=term();v=op==='+'?v+right:v-right}return v}
+ const result=expression();if(i!==tokens.length||!Number.isFinite(result))throw Error('Проверьте выражение');return result;
+}
+function boardFormulaCalc(o){
+ const expr=String(o.text||'').trim(),variables={},list=[];
+ for(const row of String(o.formulaVars||'').split(/[;\n]+/)){
+  if(!row.trim())continue;
+  const m=row.trim().match(/^([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*)\s*=\s*(-?(?:\d+(?:[.,]\d+)?|[.,]\d+))$/);
+  if(!m)return {error:'Некорректная переменная: '+row,variables:list};
+  const value=Number(m[2].replace(',','.'));variables[m[1]]=value;list.push({name:m[1],value});
+ }
+ const pieces=expr.split('=');if(pieces.length>2)return {error:'Используйте одно равенство',variables:list};
+ const label=pieces.length===2?(pieces[0].trim()||'Результат'):'Результат',rhs=pieces.length===2?pieces[1]:expr;
+ try{return {label,value:boardMathCompute(rhs,variables),variables:list}}
+ catch(error){return {label,error:String(error.message||error),variables:list}}
+}
+function boardFormulaHTML(o){
+ const r=boardFormulaCalc(o),unit=String(o.formulaUnit||'');
+ return '<div class="board-formula-panel"><div class="board-formula-head">∑ &nbsp; ВЫЧИСЛЯЕМАЯ ФОРМУЛА</div>'+
+ '<div class="board-formula-expression">'+esc(o.text||'Введите выражение')+'</div>'+
+ '<div class="board-formula-variables">'+(r.variables||[]).map(v=>'<span>'+esc(v.name)+' = '+esc(String(v.value))+'</span>').join('')+'</div>'+
+ (r.error?'<div class="board-formula-error">'+esc(r.error)+'</div>':
+ '<div class="board-formula-result"><small>'+esc(r.label||'Результат')+'</small><strong>'+
+ esc(new Intl.NumberFormat('ru-RU',{maximumFractionDigits:6}).format(r.value))+
+ (unit?' <span>'+esc(unit)+'</span>':'')+'</strong></div>')+'</div>';
+}
+
 function boardObject(o){const idx=getBoard().objects.findIndex(item=>item.id===o.id),zIndex=o.type==='frame'?1:20+Math.max(0,idx);const txt=o.text||'',style=`z-index:${zIndex};left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px;background:${o.fill||'#ffffff'};color:${boardTextColor(o.fill)};font-size:${o.size||17}px;transform:rotate(${Number(o.rotation)||0}deg);opacity:${o.opacity??1};border-radius:${o.radius??9}px;border:${o.borderWidth??1}px ${o.borderStyle||'solid'} ${o.borderColor||'#8cb8aa'};font-family:${boardFontStack(o.fontFamily)};font-weight:${o.fontWeight||400};box-shadow:${o.shadow?'0 8px 22px #073f3a25':'none'}`;
  const ids=db.selectedIds||[],isSelected=db.chosen===o.id||ids.includes(o.id);
- return `<div class="board-obj ${o.type} ${db.chosen===o.id?'selected':''} ${ids.length>1&&ids.includes(o.id)?'multi-selected':''} ${o.locked?'locked':''}" data-obj="${o.id}" style="${style}"><div class="obj-text" style="text-align:${o.textAlign||'center'};justify-content:${o.textAlign==='left'?'flex-start':o.textAlign==='right'?'flex-end':'center'};color:${o.textColor||boardTextColor(o.fill)}">${o.type==='image'&&o.src?`<img src="${esc(o.src)}" alt="${esc(o.text||'Изображение')}" style="max-width:100%;max-height:100%;object-fit:${o.imageFit==='cover'?'cover':'contain'};pointer-events:none">`:o.type==='table'?learningTableView(o.text,o.colWidths):esc(txt)}</div>${isSelected&&!db.live&&!o.locked?`<div class="resize" data-resize="${o.id}"></div>`:''}</div>`
+ return `<div class="board-obj ${o.type} ${db.chosen===o.id?'selected':''} ${ids.length>1&&ids.includes(o.id)?'multi-selected':''} ${o.locked?'locked':''}" data-obj="${o.id}" style="${style}"><div class="obj-text" style="text-align:${o.textAlign||'center'};justify-content:${o.textAlign==='left'?'flex-start':o.textAlign==='right'?'flex-end':'center'};color:${o.textColor||boardTextColor(o.fill)}">${o.type==='image'&&o.src?`<img src="${esc(o.src)}" alt="${esc(o.text||'Изображение')}" style="max-width:100%;max-height:100%;object-fit:${o.imageFit==='cover'?'cover':'contain'};pointer-events:none">`:o.type==='table'?learningTableView(o.text,o.colWidths):o.type==='code'?boardCodeHTML(o):o.type==='formula'?boardFormulaHTML(o):esc(txt)}</div>${isSelected&&!db.live&&!o.locked?`<div class="resize" data-resize="${o.id}"></div>`:''}</div>`
 }
 
 function addBoardImage(){let input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp';input.onchange=()=>{let f=input.files&&input.files[0];if(!f)return;if(f.size>750000){notify('Для автономного прототипа выберите изображение меньше 750 КБ');return}const reader=new FileReader();reader.onload=()=>{snapshot();let o={id:uid(),type:'image',x:260,y:240,w:320,h:240,text:f.name,src:String(reader.result),fill:'#ffffff'};getBoard().objects.push(o);db.chosen=o.id;db.tool='select';saveBoard();notify('Изображение добавлено')};reader.readAsDataURL(f)};input.click()}
 function snapshot(){temp.snapshot.push(JSON.stringify(getBoard()));if(temp.snapshot.length>80)temp.snapshot.shift();temp.future=[]}function saveBoard(refresh=true){persist();if(refresh)draw()}function setTool(t){db.tool=t;db.chosen=null;db.selectedIds=[];temp.selectedArrow=null;temp.selectedDrawings=[];temp.boardInspectorOpen=false;db.boardToolPalette=false;saveBoard()}
-function newObj(type,x,y){let defaults={text:{w:230,h:75,text:'Новый текст',fill:'transparent',size:23},heading:{w:340,h:68,text:'Заголовок',fill:'transparent',size:29},sticky:{w:190,h:150,text:'Заметка',fill:'#fff1bc'},rect:{w:225,h:110,text:'Блок схемы',fill:'#ddf4ea'},ellipse:{w:210,h:100,text:'Начало',fill:'#e6f5ef'},frame:{w:620,h:380,text:'Новый кадр',fill:'#e6f5ef'},code:{w:360,h:180,text:'for i in range(5):\n    print(i)',fill:'#e3f4ed'},poll:{w:330,h:190,text:'Быстрый вопрос\nВыберите правильный ответ',fill:'#fff'},diagram:{w:340,h:230,text:'Блок-схема\nНачало → Действие → Результат',fill:'#e6f5ef'},formula:{w:300,h:120,text:'R = U / I',fill:'#fff'},table:{w:360,h:190,text:'Показатель | Значение\nU, В | 6\nI, А | 0.3',fill:'#fff'},task:{w:340,h:175,text:'Задание группе\nОбъясните работу алгоритма',fill:'#e6f5ef'}};return {id:uid(),type,x,y,...defaults[type]||defaults.rect}}
+function newObj(type,x,y){let defaults={text:{w:230,h:75,text:'Новый текст',fill:'transparent',size:23},heading:{w:340,h:68,text:'Заголовок',fill:'transparent',size:29},sticky:{w:190,h:150,text:'Заметка',fill:'#fff1bc'},rect:{w:225,h:110,text:'Блок схемы',fill:'#ddf4ea'},ellipse:{w:210,h:100,text:'Начало',fill:'#e6f5ef'},frame:{w:620,h:380,text:'Новый кадр',fill:'#e6f5ef'},code:{w:390,h:215,text:'for i in range(5):\n    print(i)',codeLang:'python',fill:'#172a2c'},poll:{w:330,h:190,text:'Быстрый вопрос\nВыберите правильный ответ',fill:'#fff'},diagram:{w:340,h:230,text:'Блок-схема\nНачало → Действие → Результат',fill:'#e6f5ef'},formula:{w:320,h:220,text:'R = U / I',formulaVars:'U=6\nI=0.3',formulaUnit:'Ом',fill:'#ffffff'},table:{w:360,h:190,text:'Показатель | Значение\nU, В | 6\nI, А | 0.3',fill:'#fff'},task:{w:340,h:175,text:'Задание группе\nОбъясните работу алгоритма',fill:'#e6f5ef'}};return {id:uid(),type,x,y,...defaults[type]||defaults.rect}}
 function boardPos(ev){let rect=$('#boardCanvas').getBoundingClientRect();return {x:(ev.clientX-rect.left-db.panX)/db.zoom,y:(ev.clientY-rect.top-db.panY)/db.zoom}}
 
 function boardBrushMove(e){const el=$('#boardCanvas'),dot=$('#boardBrushPreview');if(!el||!dot)return;
