@@ -421,7 +421,7 @@ function boardPointerDown(e){
  const canvas=$('#boardCanvas');if(!canvas)return;
  // Never open the inspector through dragging, resizing, drawing or selection.
  temp.boardInspectorOpen=false;
- canvas.querySelector('.board-inspector')?.remove();
+ document.querySelector('.board-inspector')?.remove();
  // Middle mouse button ALWAYS pans the viewport, even over an object.
  if(e.button===1){
   temp.pointer={mode:'pan',clientX:e.clientX,clientY:e.clientY,x:db.panX,y:db.panY,middle:true};
@@ -527,7 +527,7 @@ function setupBoard(){const c=$('#boardCanvas');if(!c)return;
   if(db.live)return;
   e.preventDefault();
   temp.boardInspectorOpen=false;
-  c.querySelector('.board-inspector')?.remove();
+  document.querySelector('.board-inspector')?.remove();
   document.getElementById('boardObjectContextMenu')?.remove();
   const el=e.target.closest('[data-obj]'),obj=el?getBoard().objects.find(o=>o.id===el.dataset.obj):null;
   if(obj){db.chosen=obj.id;db.selectedIds=[obj.id];drawBoardWithoutView()}
