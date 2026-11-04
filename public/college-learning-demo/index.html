@@ -614,6 +614,26 @@ function boardFormulaHTML(o){
  (unit?' <span>'+esc(unit)+'</span>':'')+'</strong></div>')+'</div>';
 }
 
+
+function boardSpecialModal(id){
+ const o=getBoard().objects.find(x=>x.id===id);if(!o||o.locked||db.live)return;
+ temp.specialObjectId=o.id;
+ if(o.type==='code'){
+  const langs=[['python','Python'],['javascript','JavaScript'],['typescript','TypeScript'],['csharp','C#'],['sql','SQL'],['html','HTML'],['css','CSS'],['plain','Текст']];
+  modal('<h2>Редактор программного кода</h2><p>Язык, отступы и номера строк. Демоверсия не запускает пользовательские программы.</p>'+
+   '<div class="field"><label>Язык</label><select id="boardSpecialLang">'+langs.map(x=>'<option value="'+x[0]+'" '+(o.codeLang===x[0]?'selected':'')+'>'+x[1]+'</option>').join('')+'</select></div>'+
+   '<div class="field"><label>Программный код</label><textarea id="boardSpecialText" class="board-special-code" rows="13" spellcheck="false">'+esc(o.text||'')+'</textarea></div>'+
+   '<div class="actions">'+button('Отмена','closeModal')+button('Сохранить','saveSpecial:'+o.id,'primary')+'</div>');
+ }else if(o.type==='formula'){
+  modal('<h2>Вычисляемая формула</h2><p>Формат R = U / I. Поддерживаются арифметические операции, степени и скобки. Значения переменных можно изменять.</p>'+
+   '<div class="field"><label>Выражение</label><input id="boardFormulaExpr" value="'+esc(o.text||'')+'"></div>'+
+   '<div class="field"><label>Переменные (по одной в строке, например U=6)</label><textarea id="boardFormulaVars" rows="4">'+esc(o.formulaVars||'')+'</textarea></div>'+
+   '<div class="field"><label>Единица результата</label><input id="boardFormulaUnit" value="'+esc(o.formulaUnit||'')+'"></div>'+
+   '<div id="boardFormulaPreview">'+boardFormulaHTML(o)+'</div>'+
+   '<div class="actions">'+button('Отмена','closeModal')+button('Сохранить','saveSpecial:'+o.id,'primary')+'</div>');
+ }
+}
+
 function boardObject(o){const idx=getBoard().objects.findIndex(item=>item.id===o.id),zIndex=o.type==='frame'?1:20+Math.max(0,idx);const txt=o.text||'',style=`z-index:${zIndex};left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px;background:${o.fill||'#ffffff'};color:${boardTextColor(o.fill)};font-size:${o.size||17}px;transform:rotate(${Number(o.rotation)||0}deg);opacity:${o.opacity??1};border-radius:${o.radius??9}px;border:${o.borderWidth??1}px ${o.borderStyle||'solid'} ${o.borderColor||'#8cb8aa'};font-family:${boardFontStack(o.fontFamily)};font-weight:${o.fontWeight||400};box-shadow:${o.shadow?'0 8px 22px #073f3a25':'none'}`;
  const ids=db.selectedIds||[],isSelected=db.chosen===o.id||ids.includes(o.id);
  return `<div class="board-obj ${o.type} ${db.chosen===o.id?'selected':''} ${ids.length>1&&ids.includes(o.id)?'multi-selected':''} ${o.locked?'locked':''}" data-obj="${o.id}" style="${style}"><div class="obj-text" style="text-align:${o.textAlign||'center'};justify-content:${o.textAlign==='left'?'flex-start':o.textAlign==='right'?'flex-end':'center'};color:${o.textColor||boardTextColor(o.fill)}">${o.type==='image'&&o.src?`<img src="${esc(o.src)}" alt="${esc(o.text||'Изображение')}" style="max-width:100%;max-height:100%;object-fit:${o.imageFit==='cover'?'cover':'contain'};pointer-events:none">`:o.type==='table'?learningTableView(o.text,o.colWidths):o.type==='code'?boardCodeHTML(o):o.type==='formula'?boardFormulaHTML(o):esc(txt)}</div>${isSelected&&!db.live&&!o.locked?`<div class="resize" data-resize="${o.id}"></div>`:''}</div>`
@@ -631,6 +651,7 @@ function boardBrushMove(e){const el=$('#boardCanvas'),dot=$('#boardBrushPreview'
 }
 function boardStartInlineTextEdit(o,el){
  if(!o||!el||o.locked||db.live||['image','table'].includes(o.type))return false;
+ if(o.type==='code'||o.type==='formula'){boardSpecialModal(o.id);return true;}
  const t=el.querySelector('.obj-text');if(!t)return false;
  temp.pointer=null;
  db.chosen=o.id;db.selectedIds=[o.id];db.tool='select';db.selectedArrow=null;
@@ -882,6 +903,14 @@ case 'alignLeft':case 'alignTop':{const ids=db.selectedIds||[];let objs=b.object
 case 'groupObjects':{const ids=db.selectedIds||[];if(ids.length<2)return;snapshot();let g=uid();b.objects.filter(o=>ids.includes(o.id)&&o.type!=='frame').forEach(o=>o.groupId=g);saveBoard();notify('Объекты сгруппированы. Alt + клик выбирает отдельный объект.');return}
 
 case 'quickEdit':db.chosen=arg;db.selectedIds=[arg];temp.boardInspectorOpen=true;draw();return;
+case 'editSpecial':boardSpecialModal(arg);return;
+case 'saveSpecial':{
+ const o=b.objects.find(x=>x.id===arg);if(!o||o.locked)return;
+ snapshot();
+ if(o.type==='code'){o.text=$('#boardSpecialText')?.value||'';o.codeLang=$('#boardSpecialLang')?.value||'python'}
+ else if(o.type==='formula'){o.text=$('#boardFormulaExpr')?.value||'';o.formulaVars=$('#boardFormulaVars')?.value||'';o.formulaUnit=$('#boardFormulaUnit')?.value||''}
+ closeModal();saveBoard();notify('Блок сохранён');return;
+}
 case 'closeInspector':temp.boardInspectorOpen=false;draw();return;
 case 'replaceBoardImage':{
  const o=b.objects.find(x=>x.id===db.chosen);if(!o||o.type!=='image'||o.locked)return;
@@ -954,6 +983,13 @@ function handleClick(e){let el=e.target.closest('[data-route],[data-act],[data-t
  }
  if(el.dataset.route){route(el.dataset.route);return}if(el.dataset.tool){setTool(el.dataset.tool);return}act(el.dataset.act)}
 document.addEventListener('click',handleClick);
+document.addEventListener('input',e=>{
+ if(!['boardFormulaExpr','boardFormulaVars','boardFormulaUnit'].includes(e.target.id))return;
+ const obj=getBoard().objects.find(o=>o.id===temp.specialObjectId),preview=$('#boardFormulaPreview');
+ if(!obj||!preview)return;
+ preview.innerHTML=boardFormulaHTML({...obj,text:$('#boardFormulaExpr')?.value||'',
+  formulaVars:$('#boardFormulaVars')?.value||'',formulaUnit:$('#boardFormulaUnit')?.value||''});
+});
 let draggingBoardFrame=null;
 document.addEventListener('dragstart',e=>{const el=e.target.closest('[data-frame-drag]');if(!el||db.live)return;draggingBoardFrame=el.dataset.frameDrag;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',draggingBoardFrame)});
 document.addEventListener('dragover',e=>{const el=e.target.closest('[data-frame-drag]');if(!el||!draggingBoardFrame)return;e.preventDefault();el.classList.add('frame-drop')});
