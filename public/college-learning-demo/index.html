@@ -328,7 +328,7 @@ function tableEditMarkup(id,value,kind='material'){
 function learningTableItem(wrap){
  const id=wrap?.dataset.gridId,kind=wrap?.dataset.gridKind;
  if(kind==='board')return getBoard().objects.find(o=>o.id===id)||null;
- return getMat()?.blocks?.find(b=>b.id===id)||null;
+ const m=getMat();return [...(m?.blocks||[]),...(m?.learningBlocks||[])].find(b=>b.id===id)||null;
 }
 function setLearningTableValue(wrap,rows){
  const item=learningTableItem(wrap);if(!item)return;
@@ -336,6 +336,25 @@ function setLearningTableValue(wrap,rows){
  if(wrap.dataset.gridKind==='board')item.text=value;else item.value=value;
  persist();
 }
+document.addEventListener('focusin',e=>{
+ const cell=e.target.closest('[data-grid-cell]');if(!cell)return;
+ const wrap=cell.closest('[data-grid-id]');
+ wrap.dataset.activeRow=cell.dataset.r;wrap.dataset.activeCol=cell.dataset.c;
+});
+document.addEventListener('paste',e=>{
+ const cell=e.target.closest('[data-grid-cell]');if(!cell)return;
+ const clip=e.clipboardData?.getData('text/plain')||'';
+ if(!clip.includes('\t')&&!clip.includes('\n'))return;
+ e.preventDefault();
+ const wrap=cell.closest('[data-grid-id]'),item=learningTableItem(wrap);if(!item)return;
+ const rows=parseLearningTable(wrap.dataset.gridKind==='board'?item.text:item.value),r0=+cell.dataset.r,c0=+cell.dataset.c;
+ const pasted=clip.trimEnd().split(/\r?\n/).map(row=>row.split('\t'));
+ const neededRows=r0+pasted.length,neededCols=c0+Math.max(...pasted.map(r=>r.length));
+ while(rows.length<neededRows)rows.push(Array(rows[0].length).fill(''));
+ rows.forEach(row=>{while(row.length<neededCols)row.push('')});
+ pasted.forEach((row,i)=>row.forEach((value,j)=>rows[r0+i][c0+j]=value));
+ setLearningTableValue(wrap,rows);const scroll=window.scrollY;draw();requestAnimationFrame(()=>window.scrollTo({top:scroll,behavior:'instant'}));
+});
 document.addEventListener('input',e=>{
  const cell=e.target.closest('[data-grid-cell]');if(!cell)return;
  const wrap=cell.closest('[data-grid-id]'),item=learningTableItem(wrap);if(!item)return;
@@ -348,10 +367,12 @@ document.addEventListener('click',e=>{
  e.preventDefault();e.stopPropagation();
  const wrap=btn.closest('[data-grid-id]'),item=learningTableItem(wrap);if(!item)return;
  const rows=parseLearningTable(wrap.dataset.gridKind==='board'?item.text:item.value),op=btn.dataset.gridOperation;
- if(op==='add-row')rows.push(Array(rows[0].length).fill(''));
- else if(op==='add-column')rows.forEach(r=>r.push(''));
- else if(op==='delete-row'&&rows.length>1)rows.pop();
- else if(op==='delete-column'&&rows[0].length>1)rows.forEach(r=>r.pop());
+ const activeRow=Number.isInteger(+wrap.dataset.activeRow)?+wrap.dataset.activeRow:rows.length-1;
+ const activeCol=Number.isInteger(+wrap.dataset.activeCol)?+wrap.dataset.activeCol:rows[0].length-1;
+ if(op==='add-row')rows.splice(Math.min(rows.length,activeRow+1),0,Array(rows[0].length).fill(''));
+ else if(op==='add-column')rows.forEach(r=>r.splice(Math.min(r.length,activeCol+1),0,''));
+ else if(op==='delete-row'&&rows.length>1)rows.splice(Math.min(rows.length-1,activeRow),1);
+ else if(op==='delete-column'&&rows[0].length>1)rows.forEach(r=>r.splice(Math.min(r.length-1,activeCol),1));
  setLearningTableValue(wrap,rows);
  const activeScroll=window.scrollY;draw();
  requestAnimationFrame(()=>window.scrollTo({top:activeScroll,behavior:'instant'}));
